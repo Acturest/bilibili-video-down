@@ -22,9 +22,9 @@ class VideoDownloader:
         # 创建选项卡1
         tab1 = ttk.Frame(notebook)
         notebook.add(tab1, text='登录&验证')
-        self.v = StringVar()
+        self.v, self.v0 = StringVar(), StringVar()
         top_1 = Label(tab1, bg='yellow', width=60, textvariable=self.v)
-        self.v.set('未验证')
+        self.v.set('验证以及登录的信息将显示在这里')
         button_verify = ttk.Button(tab1, text="验证", width=10, command=self.accept_input)
         button_login = ttk.Button(tab1, text="登录", width=10, command=self.login_input)
         top_1.pack(fill="both", side='bottom')
@@ -43,6 +43,8 @@ class VideoDownloader:
         self.combobox2 = ttk.Combobox(tab2, values=options2)
         self.combobox2.current(0)
         button = ttk.Button(tab2, text="下载", width=10, command=self.process_input)
+        self.text_log = Label(tab2, bg='yellow', width=100, textvariable=self.v0)
+        self.v0.set("这里将显示部分错误信息以及下载状态")
         # 进度条
         self.progress = ttk.Progressbar(tab2)
         # 放置主窗口
@@ -50,6 +52,7 @@ class VideoDownloader:
         text2.pack(side="top", anchor='w'), self.combobox1.pack(side="top", anchor='w')
         text3.pack(side="top", anchor='w'), self.combobox2.pack(side="top", anchor='w')
         button.pack(padx=5, pady=5)
+        self.text_log.pack(fill="both", side='bottom')
         notebook.pack(side="top", fill="both", expand=True)
 
     def process_input(self):
@@ -63,12 +66,16 @@ class VideoDownloader:
             m = "bvid=" + m[2:]
         elif 'av' in user_input:
             m = user_input[user_input.index('av'):user_input.index('av') + 11]
+        else:
+            return self.v0.set("输入的地址中未包含BV或av号,请重新尝试")
         video_url, video_title = down.video_down(m, definition_input)
+        if video_title == "Warning_0":
+            return self.v0.set(video_url)
         video = down.get_response(video_url, True)
         length = int(video.headers.get('Content-Length'))
         # 进度条
-        self.progress['maximum'] = length
-        self.progress['value'] = 0
+        self.v0.set("视频下载中...")
+        self.progress['maximum'], self.progress['value'] = length, 0
         self.progress.pack(pady=10)
         with open(r'.\{}.mp4'.format(video_title), 'wb') as f:
             # 获取下载进度
@@ -78,9 +85,8 @@ class VideoDownloader:
                 write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
                 self.progress['value'] = write_all
                 self.root.update()
-                # time.sleep(0.05)
         end_time = time.time()
-        print('Time : ', int(end_time - start_time))
+        self.v0.set("视频下载完成,总用时: {:d}s".format(int(end_time - start_time)))
 
     def accept_input(self):
         if os.path.isfile(r'.\tmp\your_cookie.txt'):
@@ -89,7 +95,7 @@ class VideoDownloader:
             self.v.set("未登录,请先登录")
 
     def login_input(self):
-        verify.login()
+        self.v.set(verify.login())
 
 
 if __name__ == "__main__":

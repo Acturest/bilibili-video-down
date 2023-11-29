@@ -12,7 +12,7 @@ def accept():
     }
     cookie_url = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
     if json.loads(requests.get(url=cookie_url, headers=header).text)['code'] == 0:
-        return "已登录"
+        return "已登录(验证)"
     else:
         return "登录已过期,请尝试重新登录"
 
@@ -51,6 +51,7 @@ def login():
         key_cookie = key.headers['Set-Cookie']
         with open(r".\tmp\your_cookie.txt", 'w') as f:
             f.write(key_cookie)
+        return "已登陆"
     else:
-        return
+        return "您似乎未扫码,请重新登录"
 
