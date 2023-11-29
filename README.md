@@ -6,3 +6,8 @@
   1.安装cv2+qrcode模块
   
   2.运行ui.py
+
+# 参考
+使用了以下仓库中整理的BiliBili API
+
+[SocialSisterYi/bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) 
