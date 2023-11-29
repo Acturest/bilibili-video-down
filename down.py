@@ -8,7 +8,7 @@ def get_response(html_url, temp):
     header = {
         'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         "Referer": "https://www.bilibili.com/",
-        "Cookie": open(r'.\your_cookie.txt', 'r').read()
+        "Cookie": open(r'.\tmp\your_cookie.txt', 'r').read()
     }
     if not temp:
         r = requests.get(url=html_url, headers=header)

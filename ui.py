@@ -3,6 +3,7 @@ from tkinter import ttk
 import down
 import verify
 import time
+import os
 
 
 class VideoDownloader:
@@ -82,7 +83,10 @@ class VideoDownloader:
         print('Time : ', int(end_time - start_time))
 
     def accept_input(self):
-        self.v.set(verify.accept())
+        if os.path.isfile(r'.\tmp\your_cookie.txt'):
+            self.v.set(verify.accept())
+        else:
+            self.v.set("未登录,请先登录")
 
     def login_input(self):
         verify.login()

@@ -8,13 +8,13 @@ def accept():
     header = {
         'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         "Referer": "https://www.bilibili.com/",
-        "Cookie": open(r'.\your_cookie.txt', 'r').read()
+        "Cookie": open(r'.\tmp\your_cookie.txt', 'r').read()
     }
     cookie_url = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
     if json.loads(requests.get(url=cookie_url, headers=header).text)['code'] == 0:
-        return "Cookie仍然可以生效"
+        return "已登录"
     else:
-        return "Cookie已过期,请重新获取"
+        return "登录已过期,请尝试重新登录"
 
 
 def login():
@@ -38,9 +38,9 @@ def login():
     qr.add_data(img_url)
     qr.make(fit=True)
     img = qr.make_image()
-    img.save("my_blog.png")
+    img.save(r".\tmp\my_blog.png")
     # 显示二维码
-    image = cv2.imread('my_blog.png')
+    image = cv2.imread(r'.\tmp\my_blog.png')
     cv2.imshow("login", image)
     cv2.waitKey()
     # 扫码验证
@@ -49,7 +49,7 @@ def login():
     key = s.get(url=key_url, params=kw, headers=header)
     if json.loads(key.text)['data']['message'] != '未扫码':
         key_cookie = key.headers['Set-Cookie']
-        with open("your_cookie.txt", 'w') as f:
+        with open(r".\tmp\your_cookie.txt", 'w') as f:
             f.write(key_cookie)
     else:
         return
