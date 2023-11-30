@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import ttk
+from tkinter import filedialog
 import down
 import verify
 import time
@@ -10,7 +11,7 @@ class VideoDownloader:
     def __init__(self, root):
         self.root = root
         self.root.title('Down Video')
-        self.root.geometry('350x300+362+234')
+        self.root.geometry('350x350+362+234')
         self.root["bg"] = "white"
         # 虚化 值越小虚化程度越高
         # self.root.attributes('-alpha', 0.8)
@@ -22,7 +23,7 @@ class VideoDownloader:
         # 创建选项卡1
         tab1 = ttk.Frame(notebook)
         notebook.add(tab1, text='登录&验证')
-        self.v, self.v0 = StringVar(), StringVar()
+        self.v, self.v0, self.folder_var = StringVar(), StringVar(), StringVar()
         top_1 = Label(tab1, bg='yellow', width=60, textvariable=self.v)
         self.v.set('验证以及登录的信息将显示在这里')
         button_verify = ttk.Button(tab1, text="验证", width=10, command=self.accept_input)
@@ -42,6 +43,13 @@ class VideoDownloader:
         options2 = ["视频+音频", "仅音频"]
         self.combobox2 = ttk.Combobox(tab2, values=options2)
         self.combobox2.current(0)
+        text4 = ttk.Label(tab2, text="视频保存地址")
+        self.folder_var.set(open(r'.\tmp\video_file.txt', 'r').read())
+        self.entry2 = ttk.Entry(tab2, width=80, textvariable=self.folder_var, state="readonly")
+        save_button = ttk.Button(tab2, text="save", command=self.save_input)
+        open_button = ttk.Button(tab2, text="open", command=self.open_input)
+        # 禁止鼠标滚轮控制选项
+        self.mouse()
         button = ttk.Button(tab2, text="下载", width=10, command=self.process_input)
         self.text_log = Label(tab2, bg='yellow', width=100, textvariable=self.v0)
         self.v0.set("这里将显示部分错误信息以及下载状态")
@@ -51,6 +59,8 @@ class VideoDownloader:
         text1.pack(side="top", anchor='nw'), self.entry.pack(fill="both")
         text2.pack(side="top", anchor='w'), self.combobox1.pack(side="top", anchor='w')
         text3.pack(side="top", anchor='w'), self.combobox2.pack(side="top", anchor='w')
+        text4.pack(side="top", anchor='w'), self.entry2.pack(side="top", anchor='w'),
+        save_button.pack(side="top", anchor='w'), open_button.pack(side="top", anchor='w')
         button.pack(padx=5, pady=5)
         self.text_log.pack(fill="both", side='bottom')
         notebook.pack(side="top", fill="both", expand=True)
@@ -77,7 +87,7 @@ class VideoDownloader:
         self.v0.set("视频下载中...")
         self.progress['maximum'], self.progress['value'] = length, 0
         self.progress.pack(pady=10)
-        with open(r'.\{}.mp4'.format(video_title), 'wb') as f:
+        with open(self.entry2.get()+r'\{}.mp4'.format(video_title), 'wb') as f:
             # 获取下载进度
             start_time = time.time()
             write_all = 0
@@ -96,6 +106,25 @@ class VideoDownloader:
 
     def login_input(self):
         self.v.set(verify.login())
+
+    def mouse(self):
+        def disable_scroll(event):
+            return "break"
+        self.combobox1.bind("<MouseWheel>", disable_scroll)
+        self.combobox2.bind("<MouseWheel>", disable_scroll)
+
+    def save_input(self):
+        file_path = filedialog.askdirectory()
+        if file_path:
+            self.folder_var.set(file_path)
+            open(r'.\tmp\video_file.txt', "w").write(file_path)
+
+    def open_input(self):
+        folder_path = os.path.abspath(self.entry2.get())
+        if os.path.exists(folder_path):
+            os.startfile(folder_path)
+        else:
+            self.v0.set("所选保存路径不存在")
 
 
 if __name__ == "__main__":
