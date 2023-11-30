@@ -83,6 +83,7 @@ class VideoDownloader:
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)
         length = int(video.headers.get('Content-Length'))
+        length_to = int(length*0.02)+10000
         # 进度条
         self.v0.set("视频下载中...")
         self.progress['maximum'], self.progress['value'] = length, 0
@@ -91,7 +92,7 @@ class VideoDownloader:
             # 获取下载进度
             start_time = time.time()
             write_all = 0
-            for chunk in video.iter_content(chunk_size=1000):
+            for chunk in video.iter_content(chunk_size=length_to):
                 write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
                 self.progress['value'] = write_all
                 self.root.update()
