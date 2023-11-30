@@ -26,7 +26,7 @@ def video_down(m, definition_id):
     else:
         cid = "https://api.bilibili.com/x/web-interface/view?{}".format(m)
     cid_url = get_response(cid, False)
-    if json.loads(cid_url.text)['code'] != '0':
+    if json.loads(cid_url.text)['code'] != 0:
         return "Warning:地址有误(av/BV号存在错误)或视频不见了", "Warning_0"
     video_cid = json.loads(cid_url.text)["data"]["cid"]
     # 获取视频标题
