@@ -1,14 +1,19 @@
 import requests
 import json
+import os
 global your_ck
 
 
 # 发送请求
 def get_response(html_url, temp):
+    if os.path.isfile(r'.\tmp\your_cookie.txt'):
+        cookie = open(r'.\tmp\your_cookie.txt', 'r').read()
+    else:
+        cookie = 'none cookie'
     header = {
         'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         "Referer": "https://www.bilibili.com/",
-        "Cookie": open(r'.\tmp\your_cookie.txt', 'r').read()
+        "Cookie": cookie
     }
     if not temp:
         r = requests.get(url=html_url, headers=header)
