@@ -23,7 +23,7 @@ def get_response(html_url, temp):
 
 
 # 视频下载
-def video_down(m, definition_id):
+def video_down(m, definition_id, audio_id):
     if m[0:2] == 'av':
         m, p = "avid=" + m[2:], "aid=" + m[2:]
         # 获取视频cid
@@ -40,6 +40,12 @@ def video_down(m, definition_id):
     for char in video_title:
         if char in sets:
             video_title = video_title.replace(char, ' ')
+    # 下载音频
+    if audio_id == '1':
+        audio_api = "https://api.bilibili.com/x/player/wbi/playurl?{}&cid={}&qn={}&fnval={}&fnver={}&fourk={}".format(m, video_cid, "0", "80", "0", "1")
+        audio_text = get_response(audio_api, False)
+        audio_url = json.loads(audio_text.text)['data']['dash']['audio'][0]['baseUrl']
+        return audio_url, video_title
     # 下载视频
     video_api = "https://api.bilibili.com/x/player/playurl?{}&cid={}&qn={}".format(m, video_cid, definition_id)
     video_text = get_response(video_api, False)

@@ -70,7 +70,7 @@ class VideoDownloader:
         definition = {"1080P": "80", "720P": "64", "360P": "16"}
         definition_input = definition[self.combobox1.get()]
         down_object = {"视频+音频": "0", "仅音频": "1"}
-        downloadtheobject = down_object[self.combobox2.get()]
+        video_or_audio = down_object[self.combobox2.get()]
         if 'BV' in user_input:
             m = user_input[user_input.index('BV'):user_input.index('BV') + 12]
             m = "bvid=" + m[2:]
@@ -78,17 +78,22 @@ class VideoDownloader:
             m = user_input[user_input.index('av'):user_input.index('av') + 11]
         else:
             return self.v0.set("输入的地址中未包含BV或av号,请重新尝试")
-        video_url, video_title = down.video_down(m, definition_input)
+        video_url, video_title = down.video_down(m, definition_input, video_or_audio)
         if video_title == "Warning_0":
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)
+        file_suffix = video_title + ".mp4"
+        if video_or_audio == "1":
+            self.v0.set("音频下载中...")
+            file_suffix = video_title + ".mp3"
+        else:
+            self.v0.set("视频下载中...")
         length = int(video.headers.get('Content-Length'))
         length_to = int(length*0.02)+10000
         # 进度条
-        self.v0.set("视频下载中...")
         self.progress['maximum'], self.progress['value'] = length, 0
         self.progress.pack(pady=10)
-        with open(self.entry2.get()+r'\{}.mp4'.format(video_title), 'wb') as f:
+        with open(self.entry2.get()+r'\{}'.format(file_suffix), 'wb') as f:
             # 获取下载进度
             start_time = time.time()
             write_all = 0
