@@ -51,11 +51,12 @@ class VideoDownloader:
         options2 = ["视频+音频", "仅音频"]
         self.combobox2 = ttk.Combobox(tab2, values=options2, state="readonly")
         self.combobox2.current(0)
-        text4 = ttk.Label(tab2, text="视频保存地址")
+        text4 = ttk.Label(tab2, text="文件保存地址:")
         self.folder_var.set(open(r'.\tmp\video_file.txt', 'r').read())
         self.entry2 = ttk.Entry(tab2, width=80, textvariable=self.folder_var, state="readonly")
-        save_button = ttk.Button(tab2, text="save", command=self.save_input, takefocus=False)
-        open_button = ttk.Button(tab2, text="open", command=self.open_input, takefocus=False)
+        file_button = ttk.Frame(tab2)
+        save_button = ttk.Button(file_button, text="选择保存位置", command=self.save_input, takefocus=False)
+        open_button = ttk.Button(file_button, text="打开文件地址", command=self.open_input, takefocus=False)
         # 禁止鼠标滚轮控制选项
         self.mouse()
         down_button = ttk.Button(tab2, text="下载", width=10, command=self.process_input, takefocus=False)
@@ -68,7 +69,7 @@ class VideoDownloader:
         text2.pack(side="top", anchor='w'), self.combobox1.pack(side="top", anchor='w')
         text3.pack(side="top", anchor='w'), self.combobox2.pack(side="top", anchor='w')
         text4.pack(side="top", anchor='w'), self.entry2.pack(side="top", anchor='w'),
-        save_button.pack(side="top", anchor='w'), open_button.pack(side="top", anchor='w')
+        file_button.pack(), save_button.grid(row=0, column=0, padx=40), open_button.grid(row=0, column=1, padx=40)
         down_button.pack(padx=5, pady=5)
         log_2.pack(fill="both", side='bottom')
         notebook.pack(side="top", fill="both", expand=True)
@@ -110,7 +111,7 @@ class VideoDownloader:
                 self.progress['value'] = write_all
                 self.root.update()
         end_time = time.time()
-        self.v0.set("视频下载完成,总用时: {:d}s".format(int(end_time - start_time)))
+        self.v0.set("下载完成,总用时: {:d}s".format(int(end_time - start_time)))
 
     def image_processing(self, image_file):
         image = Image.open(image_file)
