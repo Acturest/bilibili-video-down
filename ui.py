@@ -1,8 +1,6 @@
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
-import threading
-from threading import Thread
 from PIL import Image, ImageTk
 import down
 import verify
