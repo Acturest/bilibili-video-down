@@ -1,6 +1,9 @@
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
+import threading
+from threading import Thread
+from PIL import Image, ImageTk
 import down
 import verify
 import time
@@ -11,8 +14,9 @@ class VideoDownloader:
     def __init__(self, root):
         self.root = root
         self.root.title('Down Video')
-        self.root.geometry('350x350+362+234')
+        self.root.geometry('350x380+362+234')
         self.root["bg"] = "white"
+        self.v, self.v0, self.folder_var, self.token = StringVar(), StringVar(), StringVar(), None
         # 虚化 值越小虚化程度越高
         # self.root.attributes('-alpha', 0.8)
         # GUI components
@@ -20,17 +24,23 @@ class VideoDownloader:
 
     def create_widgets(self):
         notebook = ttk.Notebook(self.root)
-        # 创建选项卡1
+        # 选项卡1
         tab1 = ttk.Frame(notebook)
         notebook.add(tab1, text='登录&验证')
-        self.v, self.v0, self.folder_var = StringVar(), StringVar(), StringVar()
-        top_1 = Label(tab1, bg='yellow', width=60, textvariable=self.v)
+        tab1_top = ttk.Frame(tab1)
+        button_verify = ttk.Button(tab1_top, text="验证", width=10, command=self.accept_input, takefocus=False)
+        button_login = ttk.Button(tab1_top, text="登录", width=10, command=self.login_input, takefocus=False)
+        tab1_information = ttk.LabelFrame(tab1, text='二维码', width=200, height=200, borderwidth=2, relief="sunken")
+        image = Image.open(r'.\tmp\0035.png')
+        self.photo = ImageTk.PhotoImage(image)
+        self.label = ttk.Label(tab1_information, image=self.photo)
+        image_button = ttk.Button(tab1_information, text="扫码后请点击", command=self.login_accept, takefocus=False)
+        log_1 = ttk.Label(tab1, background="yellow", width=60, textvariable=self.v, anchor='center')
         self.v.set('验证以及登录的信息将显示在这里')
-        button_verify = ttk.Button(tab1, text="验证", width=10, command=self.accept_input)
-        button_login = ttk.Button(tab1, text="登录", width=10, command=self.login_input)
-        top_1.pack(fill="both", side='bottom')
-        button_login.pack(), button_verify.pack()
-        # 创建选项卡2
+        tab1_top.pack(pady=10), button_login.grid(row=0, column=0, padx=10), button_verify.grid(row=0, column=1, padx=10)
+        tab1_information.pack(), self.label.pack(), image_button.pack()
+        log_1.pack(fill="both", side='bottom')
+        # 选项卡2
         tab2 = ttk.Frame(notebook)
         notebook.add(tab2, text='下载视频')
         text1 = ttk.Label(tab2, text="视频地址(支持av号):")
@@ -46,12 +56,12 @@ class VideoDownloader:
         text4 = ttk.Label(tab2, text="视频保存地址")
         self.folder_var.set(open(r'.\tmp\video_file.txt', 'r').read())
         self.entry2 = ttk.Entry(tab2, width=80, textvariable=self.folder_var, state="readonly")
-        save_button = ttk.Button(tab2, text="save", command=self.save_input)
-        open_button = ttk.Button(tab2, text="open", command=self.open_input)
+        save_button = ttk.Button(tab2, text="save", command=self.save_input, takefocus=False)
+        open_button = ttk.Button(tab2, text="open", command=self.open_input, takefocus=False)
         # 禁止鼠标滚轮控制选项
         self.mouse()
-        button = ttk.Button(tab2, text="下载", width=10, command=self.process_input)
-        self.text_log = Label(tab2, bg='yellow', width=100, textvariable=self.v0)
+        down_button = ttk.Button(tab2, text="下载", width=10, command=self.process_input, takefocus=False)
+        log_2 = ttk.Label(tab2, background="yellow", width=100, textvariable=self.v0, anchor='center')
         self.v0.set("这里将显示部分错误信息以及下载状态")
         # 进度条
         self.progress = ttk.Progressbar(tab2)
@@ -61,8 +71,8 @@ class VideoDownloader:
         text3.pack(side="top", anchor='w'), self.combobox2.pack(side="top", anchor='w')
         text4.pack(side="top", anchor='w'), self.entry2.pack(side="top", anchor='w'),
         save_button.pack(side="top", anchor='w'), open_button.pack(side="top", anchor='w')
-        button.pack(padx=5, pady=5)
-        self.text_log.pack(fill="both", side='bottom')
+        down_button.pack(padx=5, pady=5)
+        log_2.pack(fill="both", side='bottom')
         notebook.pack(side="top", fill="both", expand=True)
 
     def process_input(self):
@@ -89,20 +99,25 @@ class VideoDownloader:
         else:
             self.v0.set("视频下载中...")
         length = int(video.headers.get('Content-Length'))
-        length_to = int(length*0.02)+10000
+        length_block = int(length * 0.02) + 10000
         # 进度条
         self.progress['maximum'], self.progress['value'] = length, 0
         self.progress.pack(pady=10)
-        with open(self.entry2.get()+r'\{}'.format(file_suffix), 'wb') as f:
+        with open(self.entry2.get() + r'\{}'.format(file_suffix), 'wb') as f:
             # 获取下载进度
             start_time = time.time()
             write_all = 0
-            for chunk in video.iter_content(chunk_size=length_to):
+            for chunk in video.iter_content(chunk_size=length_block):
                 write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
                 self.progress['value'] = write_all
                 self.root.update()
         end_time = time.time()
         self.v0.set("视频下载完成,总用时: {:d}s".format(int(end_time - start_time)))
+
+    def image_processing(self, image_file):
+        image = Image.open(image_file)
+        self.photo = ImageTk.PhotoImage(image)
+        self.label.configure(image=self.photo)
 
     def accept_input(self):
         if os.path.isfile(r'.\tmp\your_cookie.txt'):
@@ -111,11 +126,20 @@ class VideoDownloader:
             self.v.set("未登录,请先登录")
 
     def login_input(self):
-        self.v.set(verify.login())
+        self.token = verify.login()
+        self.image_processing(r'.\tmp\my_blog.png')
+
+    def login_accept(self):
+        if self.token is not None:
+            self.v.set(verify.login_accept(self.token))
+            self.image_processing(r'.\tmp\0035.png')
+        else:
+            self.v.set('未点击登录')
 
     def mouse(self):
         def disable_scroll(event):
             return "break"
+
         self.combobox1.bind("<MouseWheel>", disable_scroll)
         self.combobox2.bind("<MouseWheel>", disable_scroll)
 

@@ -3,6 +3,11 @@ import json
 import qrcode
 import cv2
 
+header_public = {
+    'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Referer": "https://www.bilibili.com/",
+}
+
 
 def accept():
     header = {
@@ -18,35 +23,30 @@ def accept():
 
 
 def login():
-    s = requests.Session()
     # 申请二维码
     url = 'https://passport.bilibili.com/x/passport-login/web/qrcode/generate'
-    header = {
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        "Referer": "https://www.bilibili.com/",
-    }
-    r = requests.get(url=url, headers=header)
+    r = requests.get(url=url, headers=header_public)
     img_url = json.loads(r.text)['data']['url']
     token = json.loads(r.text)['data']['qrcode_key']
     # 生成二维码
     qr = qrcode.QRCode(
         version=2,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
+        box_size=5,
         border=1
     )
     qr.add_data(img_url)
     qr.make(fit=True)
     img = qr.make_image()
     img.save(r".\tmp\my_blog.png")
-    # 显示二维码
-    image = cv2.imread(r'.\tmp\my_blog.png')
-    cv2.imshow("login", image)
-    cv2.waitKey()
-    # 扫码验证
+    return token
+
+
+def login_accept(token):
+    # 登录验证
     key_url = 'https://passport.bilibili.com/x/passport-login/web/qrcode/poll'
     kw = {'qrcode_key': token}
-    key = s.get(url=key_url, params=kw, headers=header)
+    key = requests.get(url=key_url, params=kw, headers=header_public)
     if json.loads(key.text)['data']['message'] != '未扫码':
         key_cookie = key.headers['Set-Cookie']
         with open(r".\tmp\your_cookie.txt", 'w') as f:
@@ -54,4 +54,3 @@ def login():
         return "已登陆"
     else:
         return "您似乎未扫码,请重新登录"
-
