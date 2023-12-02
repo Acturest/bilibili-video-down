@@ -47,11 +47,11 @@ class VideoDownloader:
         self.entry = ttk.Entry(tab2, width=60)
         text2 = ttk.Label(tab2, text="视频清晰度:")
         options1 = ["1080P", "720P", "360P"]
-        self.combobox1 = ttk.Combobox(tab2, values=options1)
+        self.combobox1 = ttk.Combobox(tab2, values=options1, state="readonly")
         self.combobox1.current(0)
         text3 = ttk.Label(tab2, text="下载选项:")
         options2 = ["视频+音频", "仅音频"]
-        self.combobox2 = ttk.Combobox(tab2, values=options2)
+        self.combobox2 = ttk.Combobox(tab2, values=options2, state="readonly")
         self.combobox2.current(0)
         text4 = ttk.Label(tab2, text="视频保存地址")
         self.folder_var.set(open(r'.\tmp\video_file.txt', 'r').read())
