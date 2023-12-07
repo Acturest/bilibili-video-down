@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+import threading as td
 import down
 import verify
 import time
@@ -32,7 +33,7 @@ class VideoDownloader:
         image = Image.open(r'.\tmp\0035.png')
         self.photo = ImageTk.PhotoImage(image)
         self.label = ttk.Label(tab1_information, image=self.photo)
-        image_button = ttk.Button(tab1_information, text="扫码后请点击", command=self.login_accept, takefocus=False)
+        image_button = ttk.Button(tab1_information, text="清除缓存", command=self.login_accept, takefocus=False)
         log_1 = ttk.Label(tab1, background="yellow", width=60, textvariable=self.v, anchor='center')
         self.v.set('验证以及登录的信息将显示在这里')
         tab1_top.pack(pady=10), button_login.grid(row=0, column=0, padx=10), button_verify.grid(row=0, column=1, padx=10)
@@ -124,16 +125,31 @@ class VideoDownloader:
         else:
             self.v.set("未登录,请先登录")
 
+    def thread_processing(self):
+        self.v.set('已登录')
+        self.image_processing(r'.\tmp\0035.png')
+
+    def qrcode_thread(self):
+        cut_time = 1
+        while cut_time < 121:
+            time.sleep(1)
+            if cut_time % 5 == 0:
+                if verify.login_accept(self.token) == "已登陆":
+                    self.root.after(0, self.thread_processing)
+                    break
+            cut_time += 1
+
     def login_input(self):
         self.token = verify.login()
         self.image_processing(r'.\tmp\my_blog.png')
+        t1 = td.Thread(target=self.qrcode_thread).start()
 
     def login_accept(self):
-        if self.token is not None:
-            self.v.set(verify.login_accept(self.token))
-            self.image_processing(r'.\tmp\0035.png')
-        else:
-            self.v.set('未点击登录')
+        if os.path.isfile(r'.\tmp\my_blog.png'):
+            os.remove(r'.\tmp\my_blog.png')
+        if os.path.isfile(r'.\tmp\your_cookie.txt'):
+            os.remove(r'.\tmp\your_cookie.txt')
+        self.v.set('已清除缓存')
 
     def mouse(self):
         def disable_scroll(event):

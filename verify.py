@@ -46,7 +46,7 @@ def login_accept(token):
     key_url = 'https://passport.bilibili.com/x/passport-login/web/qrcode/poll'
     kw = {'qrcode_key': token}
     key = requests.get(url=key_url, params=kw, headers=header_public)
-    if json.loads(key.text)['data']['message'] != '未扫码':
+    if json.loads(key.text)['data']['message'] != '未扫码' and 'Set-Cookie' in key.headers:
         key_cookie = key.headers['Set-Cookie']
         with open(r".\tmp\your_cookie.txt", 'w') as f:
             f.write(key_cookie)
