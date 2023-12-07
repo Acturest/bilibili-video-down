@@ -50,6 +50,6 @@ def login_accept(token):
         key_cookie = key.headers['Set-Cookie']
         with open(r".\tmp\your_cookie.txt", 'w') as f:
             f.write(key_cookie)
-        return "已登陆"
+        return "已登录"
     else:
         return "您似乎未扫码,请重新登录"

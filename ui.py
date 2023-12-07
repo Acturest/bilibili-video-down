@@ -134,7 +134,7 @@ class VideoDownloader:
         while cut_time < 121:
             time.sleep(1)
             if cut_time % 5 == 0:
-                if verify.login_accept(self.token) == "已登陆":
+                if verify.login_accept(self.token) == "已登录":
                     self.root.after(0, self.thread_processing)
                     break
             cut_time += 1
