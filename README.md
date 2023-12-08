@@ -1,5 +1,5 @@
 # bilibili-video-down
-这是一个下载bilibili视频的程序,是本人学习python模块过程中的一个小练习
+这个程序用于下载bilibili网站的视频
 
 ui界面使用的是python内置的tkinter
 
