@@ -12,6 +12,7 @@ class VideoDownloader:
     def __init__(self, root):
         self.style = tkb.Style()
         self.root = root
+        self.root.iconbitmap(r'.\tmp\favicon.ico')
         self.v, self.v0, self.folder_var, self.token = tkb.StringVar(), tkb.StringVar(), tkb.StringVar(), None
         self.flag = 1
         self.create_widgets()
