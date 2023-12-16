@@ -4,6 +4,8 @@
 ui界面使用的是python内置的tkinter
 
 支持使用带有av号的链接,支持单独下载音频
+
+![image](./tmp/img.png)
 # 使用方式
   1.下载最新的发行版
   
