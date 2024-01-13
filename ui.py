@@ -2,10 +2,18 @@ from tkinter import filedialog
 import ttkbootstrap as tkb
 from PIL import Image, ImageTk
 import threading as td
+import psutil
 import down
 import verify
 import time
 import os
+
+
+def is_process_running(process_name):
+    for process in psutil.process_iter(['pid', 'name']):
+        if process.info['name'] == process_name:
+            return True
+    return False
 
 
 class VideoDownloader:
@@ -201,6 +209,8 @@ class VideoDownloader:
 
 
 if __name__ == "__main__":
-    root = tkb.Window(title='Download UI', themename='cosmo', size=(1100, 625), position=(400, 250), resizable=None)
-    app = VideoDownloader(root)
-    root.mainloop()
+    if not is_process_running('BilibiliVideoDown.exe'):
+        root = tkb.Window(title='Download UI', themename='cosmo', size=(1100, 625), position=(400, 250), resizable=None)
+        app = VideoDownloader(root)
+        root.mainloop()
+        
