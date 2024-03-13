@@ -103,6 +103,13 @@ class VideoDownloader:
         topic = tkb.Checkbutton(tab1_top, text='dark', bootstyle="round-toggle", command=self.theme)
         tab1_information.pack(pady=30), self.label.pack(), image_button.pack(), topic.pack(side="bottom", pady=25)
 
+    def run_quick_down(self, length, file_url, video_url):
+        times = qd.quick_down(length, file_url, video_url)
+        self.v0.set("快速下载完成,总用时: {:d}s".format(times))
+
+    def run_quick_down_task(self, length, file_url, video_url):
+        td.Thread(target=self.run_quick_down, args=(length, file_url, video_url)).start()
+
     def process_input(self):
         user_input = self.entry.get()
         definition = {"1080P": "80", "720P": "64", "360P": "16"}
@@ -146,8 +153,7 @@ class VideoDownloader:
             self.v0.set("下载完成,总用时: {:d}s".format(int(end_time - start_time)))
         else:
             file_url = self.entry2.get() + r'\{}'.format(file_suffix)
-            times = qd.quick_down(length, file_url, video_url)
-            self.v0.set("快速下载完成,总用时: {:d}s".format(times))
+            self.run_quick_down_task(length, file_url, video_url)
 
     def mouse(self):
         def disable_scroll(event):
