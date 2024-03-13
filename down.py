@@ -1,7 +1,6 @@
 import requests
 import json
 import os
-global your_ck
 
 
 # 发送请求
@@ -45,10 +44,15 @@ def video_down(m, definition_id, audio_id):
         audio_api = "https://api.bilibili.com/x/player/wbi/playurl?{}&cid={}&qn={}&fnval={}&fnver={}&fourk={}".format(m, video_cid, "0", "80", "0", "1")
         audio_text = get_response(audio_api, False)
         audio_url = json.loads(audio_text.text)['data']['dash']['audio'][0]['baseUrl']
-        return audio_url, video_title
+        return audio_url, video_title, 0
     # 下载视频
-    video_api = "https://api.bilibili.com/x/player/playurl?{}&cid={}&qn={}".format(m, video_cid, definition_id)
-    video_text = get_response(video_api, False)
-    video_url = json.loads(video_text.text)['data']['durl'][0]['url']
-    return video_url, video_title
-
+    if audio_id == '0':
+        video_api = "https://api.bilibili.com/x/player/playurl?{}&cid={}&qn={}".format(m, video_cid, definition_id)
+        video_text = get_response(video_api, False)
+        video_url = json.loads(video_text.text)['data']['durl'][0]['url']
+        return video_url, video_title, 0
+    else:
+        video_api = "https://api.bilibili.com/x/player/playurl?{}&cid={}&qn={}".format(m, video_cid, definition_id)
+        video_text = get_response(video_api, False)
+        video_url = json.loads(video_text.text)['data']['durl'][0]['url']
+        return video_url, video_title, 1

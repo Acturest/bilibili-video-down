@@ -4,6 +4,7 @@ from PIL import Image, ImageTk
 import threading as td
 import psutil
 import down
+import quick_down as qd
 import verify
 import time
 import os
@@ -49,7 +50,7 @@ class VideoDownloader:
         self.entry2 = tkb.Entry(foundation_frame, width=55, textvariable=self.folder_var, state="readonly", bootstyle="primary")
         file_save.grid(row=0, column=0, padx=10, pady=5), self.entry2.grid(row=0, column=1, pady=5)
         down_options = tkb.Label(foundation_frame, text="下载选项: ", bootstyle="primary")
-        self.combobox2 = tkb.Combobox(foundation_frame, values=["视频+音频", "仅音频"], state="readonly", bootstyle="primary")
+        self.combobox2 = tkb.Combobox(foundation_frame, values=["视频+音频", "仅音频", "快速下载"], state="readonly", bootstyle="primary")
         self.combobox2.current(0)
         down_options.grid(row=1, column=0, padx=10, pady=10), self.combobox2.grid(row=1, column=1, sticky='nsew', pady=10)
         save_button = tkb.Button(foundation_frame, text="-->", command=self.save_input, takefocus=False, width=5)
@@ -106,16 +107,16 @@ class VideoDownloader:
         user_input = self.entry.get()
         definition = {"1080P": "80", "720P": "64", "360P": "16"}
         definition_input = definition[self.combobox1.get()]
-        down_object = {"视频+音频": "0", "仅音频": "1"}
+        down_object = {"视频+音频": "0", "仅音频": "1", "快速下载": "2"}
         video_or_audio = down_object[self.combobox2.get()]
         if 'BV' in user_input:
             m = user_input[user_input.index('BV'):user_input.index('BV') + 12]
             m = "bvid=" + m[2:]
         elif 'av' in user_input:
-            m = user_input[user_input.index('av'):user_input.index('av') + 11]
+            m = user_input[user_input.index('av'):]
         else:
             return self.v0.set("输入的地址中未包含BV或av号,请重新尝试")
-        video_url, video_title = down.video_down(m, definition_input, video_or_audio)
+        video_url, video_title, total = down.video_down(m, definition_input, video_or_audio)
         if video_title == "Warning_0":
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)
@@ -123,23 +124,30 @@ class VideoDownloader:
         if video_or_audio == "1":
             self.v0.set("音频下载中...")
             file_suffix = video_title + ".mp3"
-        else:
+        elif video_or_audio == "0":
             self.v0.set("视频下载中...")
+        else:
+            self.v0.set("视频快速下载中...")
         length = int(video.headers.get('Content-Length'))
-        length_block = int(length * 0.02) + 10000
-        # 进度条
-        self.progress['maximum'], self.progress['value'] = length, 0
-        self.progress.pack(side='bottom', fill='x', pady=5)
-        with open(self.entry2.get() + r'\{}'.format(file_suffix), 'wb') as f:
-            # 获取下载进度
-            start_time = time.time()
-            write_all = 0
-            for chunk in video.iter_content(chunk_size=length_block):
-                write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
-                self.progress['value'] = write_all
-                self.root.update()
-        end_time = time.time()
-        self.v0.set("下载完成,总用时: {:d}s".format(int(end_time - start_time)))
+        if total == 0:
+            length_block = int(length * 0.02) + 10000
+            # 进度条
+            self.progress['maximum'], self.progress['value'] = length, 0
+            self.progress.pack(side='bottom', fill='x', pady=5)
+            with open(self.entry2.get() + r'\{}'.format(file_suffix), 'wb') as f:
+                # 获取下载进度
+                start_time = time.time()
+                write_all = 0
+                for chunk in video.iter_content(chunk_size=length_block):
+                    write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
+                    self.progress['value'] = write_all
+                    self.root.update()
+            end_time = time.time()
+            self.v0.set("下载完成,总用时: {:d}s".format(int(end_time - start_time)))
+        else:
+            file_url = self.entry2.get() + r'\{}'.format(file_suffix)
+            times = qd.quick_down(length, file_url, video_url)
+            self.v0.set("快速下载完成,总用时: {:d}s".format(times))
 
     def mouse(self):
         def disable_scroll(event):
@@ -213,4 +221,3 @@ if __name__ == "__main__":
         root = tkb.Window(title='Download UI', themename='cosmo', size=(1100, 625), position=(400, 250), resizable=None)
         app = VideoDownloader(root)
         root.mainloop()
-        
