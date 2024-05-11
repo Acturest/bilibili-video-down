@@ -21,6 +21,9 @@ class VideoDownloader:
     def __init__(self, root):
         self.style = tkb.Style()
         self.root = root
+        screenwidth = self.root.winfo_screenwidth()
+        screenheight = self.root.winfo_screenheight()
+        self.root.geometry('%dx%d+%d+%d' % (1100, 625, (screenwidth - 1100) / 2, (screenheight - 625) / 2))
         self.root.iconbitmap(r'.\tmp\favicon.ico')
         self.v, self.v0, self.folder_var, self.token = tkb.StringVar(), tkb.StringVar(), tkb.StringVar(), None
         self.flag = 1
@@ -120,7 +123,12 @@ class VideoDownloader:
             m = user_input[user_input.index('BV'):user_input.index('BV') + 12]
             m = "bvid=" + m[2:]
         elif 'av' in user_input:
-            m = user_input[user_input.index('av'):]
+            # m = user_input[user_input.index('av'):]
+            temp = [i for i in user_input.split('/')]
+            for i in temp:
+                if 'av' in i:
+                    m = i
+                    break
         else:
             return self.v0.set("输入的地址中未包含BV或av号,请重新尝试")
         video_url, video_title, total = down.video_down(m, definition_input, video_or_audio)
@@ -224,6 +232,6 @@ class VideoDownloader:
 
 if __name__ == "__main__":
     if not is_process_running('BilibiliVideoDown.exe'):
-        root = tkb.Window(title='Download UI', themename='cosmo', size=(1100, 625), position=(400, 250), resizable=None)
+        root = tkb.Window(title='Download UI', themename='cosmo', size=(1100, 625), resizable=(False, False))
         app = VideoDownloader(root)
         root.mainloop()
