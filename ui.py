@@ -8,6 +8,8 @@ import quick_down as qd
 import verify
 import time
 import os
+import json
+from pprint import pprint
 
 
 def is_process_running(process_name):
@@ -135,6 +137,7 @@ class VideoDownloader:
         if video_title == "Warning_0":
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)
+
         file_suffix = video_title + ".mp4"
         if video_or_audio == "1":
             self.v0.set("音频下载中...")

@@ -1,7 +1,7 @@
 import requests
 import json
 import os
-
+from pprint import pprint
 
 # 发送请求
 def get_response(html_url, temp):
@@ -33,6 +33,7 @@ def video_down(m, definition_id, audio_id):
     if json.loads(cid_url.text)['code'] != 0:
         return "Warning:地址有误(av/BV号存在错误)或视频不见了", "Warning_0"
     video_cid = json.loads(cid_url.text)["data"]["cid"]
+    # video_cid = json.loads(cid_url.text)["data"]["pages"][13]['cid']
     # 获取视频标题
     sets = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
     video_title = json.loads(cid_url.text)["data"]["title"]
@@ -49,6 +50,7 @@ def video_down(m, definition_id, audio_id):
     if audio_id == '0':
         video_api = "https://api.bilibili.com/x/player/playurl?{}&cid={}&qn={}".format(m, video_cid, definition_id)
         video_text = get_response(video_api, False)
+
         video_url = json.loads(video_text.text)['data']['durl'][0]['url']
         return video_url, video_title, 0
     else:
