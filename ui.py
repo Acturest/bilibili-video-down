@@ -8,8 +8,7 @@ import quick_down as qd
 import verify
 import time
 import os
-import json
-from pprint import pprint
+import re
 
 
 def is_process_running(process_name):
@@ -29,6 +28,8 @@ class VideoDownloader:
         self.root.iconbitmap(r'.\tmp\favicon.ico')
         self.v, self.v0, self.folder_var, self.token = tkb.StringVar(), tkb.StringVar(), tkb.StringVar(), None
         self.flag = 1
+        self.page_list = []  # 存储当前视频的分P列表
+        self.page_combobox = None  # 分P下拉框对象
         self.create_widgets()
 
     def create_widgets(self):
@@ -77,6 +78,13 @@ class VideoDownloader:
         self.combobox1 = tkb.Combobox(url_frame, values=["1080P", "720P", "360P"], state="readonly", bootstyle="primary")
         self.combobox1.current(0)
         down_video_options.grid(row=1, column=0, padx=5, pady=5), self.combobox1.grid(row=1, column=1, pady=5, sticky='nsew')
+        # 分P选择
+        down_page_label = tkb.Label(url_frame, text="分P选择:", bootstyle="primary")
+        self.page_combobox = tkb.Combobox(url_frame, values=["请先输入地址"], state="readonly", bootstyle="primary")
+        down_page_label.grid(row=2, column=0, padx=5, pady=5)
+        self.page_combobox.grid(row=2, column=1, pady=5, sticky='nsew')
+        self.page_combobox.current(0)
+
         self.mouse()  # 禁止鼠标滚轮控制选项
 
         log_frame = tkb.LabelFrame(down_frame, text='log', width=800, height=200, bootstyle="info")
@@ -116,24 +124,56 @@ class VideoDownloader:
         td.Thread(target=self.run_quick_down, args=(length, file_url, video_url)).start()
 
     def process_input(self):
+        if self.page_combobox is None:
+            return self.v0.set("请先输入视频地址以获取分P列表")
+
         user_input = self.entry.get()
         definition = {"1080P": "80", "720P": "64", "360P": "16"}
         definition_input = definition[self.combobox1.get()]
         down_object = {"视频+音频": "0", "仅音频": "1", "快速下载": "2"}
         video_or_audio = down_object[self.combobox2.get()]
+
+        # 解析 BV 或 av 号
         if 'BV' in user_input:
             m = user_input[user_input.index('BV'):user_input.index('BV') + 12]
             m = "bvid=" + m[2:]
         elif 'av' in user_input:
-            # m = user_input[user_input.index('av'):]
-            temp = [i for i in user_input.split('/')]
-            for i in temp:
-                if 'av' in i:
-                    m = i
-                    break
+            # 先从完整URL里抠出 /video/av24673016 这一段，再剥掉 ?query
+            # 匹配 av + 纯数字（最稳的方式）
+            av_match = re.search(r'(?:/|^)(av\d+)', user_input)
+            if av_match:
+                m = av_match.group(1)  # 'av24673016'
+            else:
+                return self.v0.set("无法从地址中识别av号，请检查格式")
         else:
             return self.v0.set("输入的地址中未包含BV或av号,请重新尝试")
-        video_url, video_title, total = down.video_down(m, definition_input, video_or_audio)
+
+        # 第一次点击 Down：获取分P列表并填充下拉框
+        if not self.page_list or self.page_list[0].get('_input') != m:
+            # 调用新函数获取分P列表
+            from down import get_page_list
+            pages = get_page_list(m)
+            if not pages:
+                return self.v0.set("获取分P信息失败，请检查地址")
+            # 保存到成员变量，并标记属于哪个输入
+            self.page_list = pages
+            for p in self.page_list:
+                p['_input'] = m
+            # 更新下拉框
+            page_names = ["{}. {}".format(p['index']+1, p['part']) for p in pages]
+            self.page_combobox['values'] = page_names
+            self.page_combobox.current(0)
+            self.v0.set("已获取分P列表，请选择分P后再次点击Down")
+            return
+
+        # 第二次点击 Down：使用选中的分P索引下载
+        selected_idx = self.page_combobox.current()
+        if selected_idx < 0 or selected_idx >= len(self.page_list):
+            return self.v0.set("分P选择无效，请重新选择")
+        page_index = self.page_list[selected_idx]['index']
+
+        # 调用修改后的 video_down，传入 page_index
+        video_url, video_title, total = down.video_down(m, definition_input, video_or_audio, page_index)
         if video_title == "Warning_0":
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)
@@ -149,15 +189,13 @@ class VideoDownloader:
         length = int(video.headers.get('Content-Length'))
         if total == 0:
             length_block = int(length * 0.02) + 10000
-            # 进度条
             self.progress['maximum'], self.progress['value'] = length, 0
             self.progress.pack(side='bottom', fill='x', pady=5)
             with open(self.entry2.get() + r'\{}'.format(file_suffix), 'wb') as f:
-                # 获取下载进度
                 start_time = time.time()
                 write_all = 0
                 for chunk in video.iter_content(chunk_size=length_block):
-                    write_all += f.write(chunk)  # write的返回值为写入到文件内容的多少
+                    write_all += f.write(chunk)
                     self.progress['value'] = write_all
                     self.root.update()
             end_time = time.time()
@@ -172,6 +210,9 @@ class VideoDownloader:
 
         self.combobox1.bind("<MouseWheel>", disable_scroll)
         self.combobox2.bind("<MouseWheel>", disable_scroll)
+
+        if self.page_combobox:
+            self.page_combobox.bind("<MouseWheel>", disable_scroll)
 
     #
     def save_input(self):
