@@ -1,30 +1,43 @@
-from pprint import pprint
-
 import requests
 import json
 import os
+import sys
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    APP_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    APP_DIR = BASE_DIR
+DATA_DIR = os.path.join(APP_DIR, 'tmp')
+os.makedirs(DATA_DIR, exist_ok=True)
 
 
 # 发送请求
-def get_response(html_url, temp):
-    if os.path.isfile(r'.\tmp\your_cookie.txt'):
-        cookie = open(r'.\tmp\your_cookie.txt', 'r').read()
+def get_response(html_url: str, temp: bool) -> requests.Response:
+    cookie_path = os.path.join(DATA_DIR, 'your_cookie.txt')
+    if os.path.isfile(cookie_path):
+        lines = open(cookie_path, 'r').readlines()
+        cookie = ''.join(line for line in lines if not line.startswith('#'))
     else:
         cookie = 'none cookie'
     header = {
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Referer": "https://www.bilibili.com/",
         "Cookie": cookie
     }
-    if not temp:
-        r = requests.get(url=html_url, headers=header)
-    else:
-        r = requests.get(url=html_url, headers=header, stream=True)
-    return r
+    try:
+        if not temp:
+            r = requests.get(url=html_url, headers=header, timeout=30)
+        else:
+            r = requests.get(url=html_url, headers=header, stream=True, timeout=30)
+        r.raise_for_status()
+        return r
+    except requests.RequestException as e:
+        raise RuntimeError(f"请求失败: {html_url} — {e}")
 
 
-def get_page_list(m):
-    """根据 avid 或 bvid 返回分P列表，每个元素是 {'cid':xxx, 'part':'xxx'}"""
+def get_page_list(m: str) -> list:
+    """根据 avid 或 bvid 返回分P列表，每个元素是 {'cid':xxx, 'part':'xxx', 'duration':123}"""
     if m[0:2] == 'av':
         p = "aid=" + m[2:]
     else:
@@ -37,19 +50,29 @@ def get_page_list(m):
     pages = data['data'].get('pages', [])
     # 兼容单P（无pages字段时自己构造一个）
     if not pages:
-        pages = [{'cid': data['data']['cid'], 'part': data['data']['title']}]
+        pages = [{
+            'cid': data['data']['cid'],
+            'part': data['data']['title'],
+            'duration': data['data'].get('duration', 0)
+        }]
     result = []
     for idx, page in enumerate(pages):
         result.append({
             'index': idx,
             'cid': page['cid'],
-            'part': page['part']
+            'part': page['part'],
+            'duration': page.get('duration', 0)
         })
     return result
 
 
 # 视频下载
-def video_down(m, definition_id, audio_id, page_index=0):
+def video_down(m: str, definition_id: str, audio_id: str, page_index: int = 0) -> tuple:
+    """
+    获取视频/音频下载地址。
+    清晰度 qn 参数: 16=360P, 32=480P, 64=720P, 80=1080P,
+                      116=1080P60, 120=1080P高帧率, 125=4K, 126=HDR
+    """
     if m[0:2] == 'av':
         m, p = "avid=" + m[2:], "aid=" + m[2:]
         # 获取视频cid
