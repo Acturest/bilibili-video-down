@@ -292,7 +292,8 @@ class VideoDownloader:
         page_index = self.page_list[selected_idx]['index']
 
         # 调用修改后的 video_down，传入 page_index
-        video_url, video_title, total = down.video_down(m, definition_input, video_or_audio, page_index)
+        video_url, video_title, total, _audio_url, _info = down.video_down(
+            m, definition_input, video_or_audio, page_index)
         if video_title == "Warning_0":
             return self.v0.set(video_url)
         video = down.get_response(video_url, True)

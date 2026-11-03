@@ -10,10 +10,10 @@ import shutil
 import subprocess
 import threading as td
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtWidgets import (QApplication, QFrame, QVBoxLayout,
-                             QHBoxLayout, QFileDialog)
+                             QHBoxLayout, QFileDialog, QSizePolicy)
 
 from PIL import Image
 from io import BytesIO
@@ -31,6 +31,41 @@ import verify
 import psutil
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+# ── 防止长文本撑宽窗口的小工具 ────────────────────────────────────────
+def brief(text, limit: int = 160) -> str:
+    """状态栏文本截断，避免超长路径/异常信息把窗口横向撑开。"""
+    text = str(text)
+    return text if len(text) <= limit else text[:limit - 1] + '…'
+
+
+def elide_text(text, limit: int = 70) -> str:
+    """下拉框条目截断显示（完整分P信息仍保存在 page_list 里）。"""
+    text = str(text)
+    return text if len(text) <= limit else text[:limit - 1] + '…'
+
+
+def status_label(text: str = ''):
+    """不随文本变宽的状态标签：横向策略 Ignored，超出宽度换行或裁剪。"""
+    label = BodyLabel(text)
+    label.setWordWrap(True)
+    label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    label.setMinimumWidth(0)
+    return label
+
+
+class ElidedComboBox(ComboBox):
+    """
+    ComboBox 内部是 QPushButton，宽度会跟着最长条目文本一起变大，
+    长分P名能把整个窗口撑宽。让 sizeHint 固定，条目文本另行截断。
+    """
+
+    def sizeHint(self):
+        return QSize(200, super().sizeHint().height())
+
+    def minimumSizeHint(self):
+        return QSize(80, super().minimumSizeHint().height())
 
 # App directory — when PyInstaller-bundled use exe's location, else script dir
 if getattr(sys, 'frozen', False):
@@ -66,9 +101,10 @@ def is_process_running(process_name):
 
 # ── Helper: parse vid ──────────────────────────────────────────────────
 def parse_vid(user_input: str):
+    """从地址中提取裸号：'BV1cZHK65ELz' 或 'av12345'（不带 bvid=/aid= 前缀）。"""
     if 'BV' in user_input:
         idx = user_input.index('BV')
-        m = "bvid=" + user_input[idx + 2:idx + 12]
+        m = user_input[idx:idx + 12]          # BV + 10 位，共 12 个字符
         return m, None
     elif 'av' in user_input:
         match = re.search(r'(?:/|^)(av\d+)', user_input)
@@ -140,7 +176,7 @@ class DownloadInterface(QFrame):
         page_row.setSpacing(6)
         page_label = BodyLabel('分P选择:')
         page_label.setFixedWidth(70)
-        self.page_combo = ComboBox()
+        self.page_combo = ElidedComboBox()
         self.page_combo.addItems(['请先获取分P'])
         self.page_combo.setCurrentIndex(0)
         page_row.addWidget(page_label)
@@ -148,7 +184,7 @@ class DownloadInterface(QFrame):
         layout.addLayout(page_row)
 
         # ── Status ──
-        self.download_status = BodyLabel('就绪')
+        self.download_status = status_label('就绪')
         layout.addWidget(self.download_status)
 
         # ── Progress ──
@@ -188,7 +224,7 @@ class InfoInterface(QFrame):
         login_layout.setContentsMargins(16, 16, 16, 16)
         login_layout.setSpacing(8)
 
-        self.sidebar_info = BodyLabel('信息显示')
+        self.sidebar_info = status_label('信息显示')
         login_layout.addWidget(self.sidebar_info)
 
         btn_login = PrimaryPushButton('扫描二维码登录')
@@ -404,7 +440,7 @@ class BatchDownloadInterface(QFrame):
         layout.addLayout(batch_opt_row)
 
         # ── Status ──
-        self.batch_status = BodyLabel('就绪')
+        self.batch_status = status_label('就绪')
         layout.addWidget(self.batch_status)
 
         # ── Progress ──
@@ -477,7 +513,7 @@ class ClipInterface(QFrame):
         pl.setContentsMargins(12, 8, 12, 8)
         pl.setSpacing(6)
         pl.addWidget(BodyLabel('分P选择:'))
-        self.page_combo = ComboBox()
+        self.page_combo = ElidedComboBox()
         self.page_combo.addItems(['请先获取分P'])
         self.page_combo.setCurrentIndex(0)
         pl.addWidget(self.page_combo)
@@ -542,7 +578,7 @@ class ClipInterface(QFrame):
         layout.addWidget(time_card)
 
         # ── Status ──
-        self.clip_status = BodyLabel('就绪')
+        self.clip_status = status_label('就绪')
         layout.addWidget(self.clip_status)
 
         # ── Progress + Log ──
@@ -584,6 +620,7 @@ class MainWindow(MSFluentWindow):
         self._dl_downloading = False
         self._batch_downloading = False
         self._clip_downloading = False
+        self._clip_page_signal_connected = False
 
         # Create sub-interfaces
         self.dl = DownloadInterface('下载', self)
@@ -607,12 +644,15 @@ class MainWindow(MSFluentWindow):
         if os.path.isfile(ico_path):
             self.setWindowIcon(QIcon(ico_path))
 
-        # Restore saved config
+        # Restore saved config（限制在屏幕内：旧配置可能保存过被长文本撑宽的尺寸）
         cfg = load_config()
-        saved_w = cfg.get('window_width', 1100)
-        saved_h = cfg.get('window_height', 650)
-        self.resize(saved_w, saved_h)
         screen = QApplication.primaryScreen().availableGeometry()
+        saved_w = max(820, min(int(cfg.get('window_width', 1100)),
+                               screen.width() - 80))
+        saved_h = max(560, min(int(cfg.get('window_height', 650)),
+                               screen.height() - 80))
+        self.setMinimumSize(820, 560)
+        self.resize(saved_w, saved_h)
         self.move((screen.width() - saved_w) // 2, (screen.height() - saved_h) // 2)
 
         if cfg.get('dark_mode', False):
@@ -690,7 +730,7 @@ class MainWindow(MSFluentWindow):
             p['_input'] = vid
         self.dl.page_combo.clear()
         self.dl.page_combo.addItems(
-            ["{}. {}".format(p['index'] + 1, p['part']) for p in pages])
+            [elide_text("{}. {}".format(p['index'] + 1, p['part'])) for p in pages])
         self.dl.page_combo.setCurrentIndex(0)
         self.dl.download_status.setText('已获取分P列表，请选择分P后点击下载')
         self.log_message.emit('[{}] 已获取 {} 个分P'.format(
@@ -732,34 +772,142 @@ class MainWindow(MSFluentWindow):
         page_index = self.page_list[sel]['index']
 
         try:
-            video_url, video_title, total = down.video_down(
+            video_url, video_title, total, audio_url, info = down.video_down(
                 vid, def_idx, audio_id, page_index)
         except Exception as e:
-            self.dl.download_status.setText('获取视频地址失败: ' + str(e))
+            self.dl.download_status.setText(brief('获取视频地址失败: ' + str(e)))
             return
 
         if video_title == 'Warning_0':
             self.dl.download_status.setText(video_url)
             return
 
+        # 实际清晰度和请求不一致时说明原因（B 站按账号权限降级）
+        actual = (info or {}).get('quality')
+        if actual:
+            if audio_id == '1':
+                self.log_message.emit('[{}] 仅下载音频（DASH 音频轨）'.format(
+                    time.strftime('%H:%M:%S')))
+            else:
+                downgraded = info.get('quality_id') != info.get('requested')
+                self.log_message.emit('[{}] 清晰度: 请求 {}{}'.format(
+                    time.strftime('%H:%M:%S'), info.get('requested_name'),
+                    ' → 实际 {}（B 站按账号权限降级）'.format(actual)
+                    if downgraded else ''))
+
         suffix = video_title + '.mp4'
         if audio_id == '1':
-            suffix = video_title + '.mp3'
+            # DASH 音频轨是 m4a(AAC) 封装，别硬套 .mp3 后缀
+            suffix = video_title + '.m4a'
 
-        file_path = os.path.join(self.settings.folder_edit.text(), suffix)
+        folder = self.settings.folder_edit.text()
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError as e:
+            self.dl.download_status.setText(brief('保存路径不可用: ' + str(e)))
+            return
+        file_path = os.path.join(folder, suffix)
 
         if total == 0:
             self.dl.progress_bar.setMaximum(100)
             self.dl.progress_bar.setValue(0)
             self.dl.download_status.setText('准备下载...')
             td.Thread(target=self._download_worker,
-                      args=(video_url, file_path, suffix),
+                      args=(video_url, file_path, suffix, audio_url),
                       daemon=True).start()
         else:
-            self._run_quick_down_task(total, file_path, video_url)
+            self._run_quick_down_task(total, file_path, video_url, audio_url)
 
-    def _download_worker(self, video_url: str, file_path: str, suffix: str) -> None:
+    # ── 下载实现（durl 单文件 / DASH 音视频分离） ──────────────────────
+
+    def _ffmpeg_exe(self) -> str:
+        exe = shutil.which('ffmpeg')
+        if exe:
+            return exe
+        for name in ('ffmpeg.exe', 'ffmpeg'):
+            cand = os.path.join(APP_DIR, name)
+            if os.path.isfile(cand):
+                return cand
+        return ''
+
+    def _run_ffmpeg(self, cmd: list, timeout: int = 3600):
+        """调用 ffmpeg（窗口化程序里不要弹出黑色控制台）"""
+        kwargs = {}
+        if os.name == 'nt':
+            kwargs['creationflags'] = getattr(
+                subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+        return subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=timeout, **kwargs)
+
+    def _download_dash(self, video_url: str, audio_url: str, file_path: str,
+                       quick: bool = False) -> int:
+        """
+        1080P 及以上是 DASH：音视频分离，需下载两条流再交给 ffmpeg 合并。
+        返回耗时秒数。
+        """
+        stem = re.sub(r'\.(mp4|mp3|m4a)$', '', file_path, flags=re.I)
+        vpath, apath = stem + '.video.m4s', stem + '.audio.m4s'
+        streams = [(video_url, vpath), (audio_url, apath)]
         try:
+            start = time.time()
+            if quick:
+                sizes = []
+                for url, _ in streams:
+                    head = down.get_response(url, True)
+                    sizes.append(int(head.headers.get('Content-Length') or 0))
+                    head.close()
+                if any(n <= 0 for n in sizes):
+                    raise RuntimeError('取不到流大小，无法多线程下载')
+                for (url, path), size in zip(streams, sizes):
+                    qd.quick_down(size, path, url)
+            else:
+                responses = [down.get_response(u, True) for u, _ in streams]
+                total = sum(int(r.headers.get('Content-Length') or 0)
+                            for r in responses)
+                written = 0
+                for resp, (_, path) in zip(responses, streams):
+                    with open(path, 'wb') as f:
+                        for chunk in resp.iter_content(chunk_size=1 << 18):
+                            if chunk:
+                                written += f.write(chunk)
+                                self.update_progress.emit(written, max(total, 1))
+            elapsed = int(time.time() - start)
+
+            ffmpeg = self._ffmpeg_exe()
+            if not ffmpeg:
+                raise RuntimeError('未找到 ffmpeg，无法合并 1080P 音视频')
+            cmd = [ffmpeg, '-y', '-loglevel', 'error',
+                   '-i', vpath, '-i', apath,
+                   '-c', 'copy', '-movflags', '+faststart', file_path]
+            proc = self._run_ffmpeg(cmd)
+            if proc.returncode != 0:
+                raise RuntimeError('ffmpeg 合并失败: ' +
+                                   (proc.stderr or '')[-300:])
+            return elapsed
+        finally:
+            for path in (vpath, apath):
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError:
+                    pass
+
+    def _download_worker(self, video_url: str, file_path: str, suffix: str,
+                         audio_url: str = '') -> None:
+        try:
+            if audio_url:
+                self.log_message.emit('[{}] 开始下载(DASH 音视频): {}'.format(
+                    time.strftime('%H:%M:%S'), os.path.basename(file_path)))
+                self.update_status.emit('下载中...')
+                elapsed = self._download_dash(video_url, audio_url, file_path)
+                msg = '下载完成,总用时: {:d}s'.format(elapsed)
+                self.update_status.emit(msg)
+                self.log_message.emit('[{}] {}'.format(
+                    time.strftime('%H:%M:%S'), msg))
+                self.update_progress.emit(0, 100)
+                self._open_folder_if_enabled(file_path)
+                return
+
             video = down.get_response(video_url, True)
             length = int(video.headers.get('Content-Length'))
             chunk_size = int(length * 0.02) + 10000
@@ -782,29 +930,39 @@ class MainWindow(MSFluentWindow):
                 time.strftime('%H:%M:%S'), msg))
             self.update_progress.emit(0, 100)
         except Exception as e:
-            self.update_status.emit('下载出错: ' + str(e))
+            self.update_status.emit(brief('下载出错: ' + str(e)))
             self.log_message.emit('[{}] 下载错误: {}'.format(
                 time.strftime('%H:%M:%S'), e))
         finally:
             self._dl_downloading = False
 
     def _run_quick_down_task(self, length: int, file_path: str,
-                             video_url: str) -> None:
+                             video_url: str, audio_url: str = '') -> None:
         self.dl.download_status.setText('快速下载已启动，后台多线程下载中...')
         self.log_message.emit('[{}] 快速下载已启动（后台多线程）'.format(
             time.strftime('%H:%M:%S')))
         td.Thread(target=self._run_quick_down,
-                  args=(length, file_path, video_url), daemon=True).start()
+                  args=(length, file_path, video_url, audio_url),
+                  daemon=True).start()
 
     def _run_quick_down(self, length: int, file_path: str,
-                        video_url: str) -> None:
+                        video_url: str, audio_url: str = '') -> None:
         try:
-            elapsed = qd.quick_down(length, file_path, video_url)
+            if audio_url:
+                # DASH：两条流分别多线程下载后再合并
+                elapsed = self._download_dash(video_url, audio_url,
+                                              file_path, quick=True)
+            else:
+                elapsed = qd.quick_down(length, file_path, video_url)
             msg = '快速下载完成,总用时: {:d}s'.format(elapsed)
             self.update_status.emit(msg)
             self.log_message.emit('[{}] {}'.format(
                 time.strftime('%H:%M:%S'), msg))
             self._open_folder_if_enabled(file_path)
+        except Exception as e:
+            self.update_status.emit(brief('快速下载出错: ' + str(e)))
+            self.log_message.emit('[{}] 快速下载错误: {}'.format(
+                time.strftime('%H:%M:%S'), e))
         finally:
             self._dl_downloading = False
 
@@ -932,6 +1090,11 @@ class MainWindow(MSFluentWindow):
         audio_id = down_mode[self.batch.mode_combo.currentText()]
         vid = self.batch_vid
         dest = self.settings.folder_edit.text()
+        try:
+            os.makedirs(dest, exist_ok=True)
+        except OSError as e:
+            self.batch.batch_status.setText(brief('保存路径不可用: ' + str(e)))
+            return
 
         self.batch.progress_bar.setMaximum(len(pages_to_download))
         self.batch.progress_bar.setValue(0)
@@ -956,7 +1119,7 @@ class MainWindow(MSFluentWindow):
             self.update_status.emit('批量下载 [{}/{}]'.format(current, total))
 
             try:
-                video_url, video_title, total_flag = down.video_down(
+                video_url, video_title, total_flag, audio_url, info = down.video_down(
                     vid, def_idx, audio_id, page_index)
 
                 if video_title == 'Warning_0':
@@ -967,24 +1130,33 @@ class MainWindow(MSFluentWindow):
 
                 suffix = video_title + '.mp4'
                 if audio_id == '1':
-                    suffix = video_title + '.mp3'
+                    suffix = video_title + '.m4a'
 
                 file_path = os.path.join(dest, suffix)
 
-                # Use the normal download if total_flag == 0
-                if total_flag == 0:
+                if audio_url:
+                    # DASH：音视频分离，需要合并
+                    elapsed = self._download_dash(
+                        video_url, audio_url, file_path,
+                        quick=(total_flag == 1))
+                    msg = '分P {} 完成(音视频已合并),用时: {:d}s'.format(current, elapsed)
+                elif total_flag == 0:
                     video = down.get_response(video_url, True)
                     length = int(video.headers.get('Content-Length'))
                     chunk_size = int(length * 0.02) + 10000
                     with open(file_path, 'wb') as f:
                         start_t = time.time()
-                        written = 0
                         for chunk in video.iter_content(chunk_size=chunk_size):
-                            written += f.write(chunk)
+                            f.write(chunk)
                     elapsed = int(time.time() - start_t)
                     msg = '分P {} 完成,用时: {:d}s'.format(current, elapsed)
                 else:
-                    elapsed = qd.quick_down(t := 1, file_path, video_url)
+                    head = down.get_response(video_url, True)
+                    size = int(head.headers.get('Content-Length') or 0)
+                    head.close()
+                    if size <= 0:
+                        raise RuntimeError('取不到文件大小')
+                    elapsed = qd.quick_down(size, file_path, video_url)
                     msg = '分P {} 快速下载完成,用时: {:d}s'.format(current, elapsed)
 
                 self.update_status.emit(msg)
@@ -1030,12 +1202,14 @@ class MainWindow(MSFluentWindow):
         self.clip_vid = vid
         self.clip.page_combo.clear()
         self.clip.page_combo.addItems(
-            ["{}. {}".format(p['index'] + 1, p['part']) for p in pages])
+            [elide_text("{}. {}".format(p['index'] + 1, p['part'])) for p in pages])
         self.clip.page_combo.setCurrentIndex(0)
         # Show duration for first page
         self._on_clip_page_changed(0)
-        # Connect page change
-        self.clip.page_combo.currentIndexChanged.connect(self._on_clip_page_changed)
+        # Connect page change (只连一次，避免重复获取时信号叠加)
+        if not self._clip_page_signal_connected:
+            self.clip.page_combo.currentIndexChanged.connect(self._on_clip_page_changed)
+            self._clip_page_signal_connected = True
         self.clip.clip_status.setText('已获取分P信息')
         self.log_message.emit('[{}] 截取: 已获取 {} 个分P'.format(
             time.strftime('%H:%M:%S'), len(pages)))
@@ -1109,7 +1283,7 @@ class MainWindow(MSFluentWindow):
         temp_path = os.path.join(DATA_DIR, '_clip_temp.mp4')
         try:
             # ── Step 1: download ──
-            video_url, video_title, total_flag = down.video_down(
+            video_url, video_title, total_flag, audio_url, info = down.video_down(
                 vid, def_idx, '0', page['index'])
             if video_title == 'Warning_0':
                 self.clip.clip_status.setText('获取视频失败: ' + video_url)
@@ -1118,22 +1292,25 @@ class MainWindow(MSFluentWindow):
             suffix = video_title + '_clip_{}s-{}s.mp4'.format(start, end)
             output_path = os.path.join(dest, suffix)
 
-            video = down.get_response(video_url, True)
-            length = int(video.headers.get('Content-Length'))
-            chunk_size = int(length * 0.02) + 10000
-
             self.log_message.emit('[{}] 正在下载完整视频...'.format(
                 time.strftime('%H:%M:%S')))
             self.clip.clip_status.setText('下载中 (1/2)...')
             self.update_progress.emit(0, 100)
 
-            with open(temp_path, 'wb') as f:
-                start_t = time.time()
-                written = 0
-                for chunk in video.iter_content(chunk_size=chunk_size):
-                    written += f.write(chunk)
-                    self.update_progress.emit(
-                        int(written * 100 / length), 100)
+            if audio_url:
+                # DASH：先合并音视频到临时文件
+                self._download_dash(video_url, audio_url, temp_path)
+            else:
+                video = down.get_response(video_url, True)
+                length = int(video.headers.get('Content-Length'))
+                chunk_size = int(length * 0.02) + 10000
+                with open(temp_path, 'wb') as f:
+                    start_t = time.time()
+                    written = 0
+                    for chunk in video.iter_content(chunk_size=chunk_size):
+                        written += f.write(chunk)
+                        self.update_progress.emit(
+                            int(written * 100 / length), 100)
 
             # ── Step 2: FFmpeg trim ──
             self.log_message.emit('[{}] FFmpeg 裁剪中 ({:d}s → {:d}s)...'.format(
@@ -1142,15 +1319,14 @@ class MainWindow(MSFluentWindow):
             self.update_progress.emit(50, 100)
 
             ffmpeg_cmd = [
-                'ffmpeg', '-y',
+                self._ffmpeg_exe() or 'ffmpeg', '-y',
                 '-ss', str(start),
                 '-i', temp_path,
                 '-to', str(end - start),
                 '-c', 'copy',
                 output_path
             ]
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True,
-                                    timeout=1800)
+            result = self._run_ffmpeg(ffmpeg_cmd, timeout=1800)
             if result.returncode != 0:
                 raise RuntimeError('FFmpeg 失败: ' + result.stderr[-300:])
 
